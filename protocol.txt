@@ -1,0 +1,297 @@
+                       SOCK CHAT PROTOCOL INFORMATION
+
+    Messages communicated between the client and server follow the same fo-
+rmat, but have different meanings depending on which end is the recipient.
+A message's intent is determined by its packet ID, a unique identifier that
+tells the client or server how it should react to the received message. A
+message id that incites bidirectional communication between the client and
+server should typically be associated with the same message id on the client
+as on the server, so as to avoid confusion.
+
+    A packet of communication between the client and server is considered to
+be a seamlessly connected regions of octets, the boundaries of which are de-
+fined in the header of the packet.
+
+    All binary-encoded multi-byte numbers sent in a packet are to be sent in
+network byte order (big endian).
+                      
+                              --- HEADER ---
+                      
+    Because the body of the packet is a sequence of many different regions of
+octet data that is not delimited, it is necessary for the header of the packet
+to determine boundaries for the regions of data.
+
+    The first two bytes are the packet id, the necessary ones of which are de-
+fined in the _SERVER_ and _CLIENT_ sections; a two-byte binary number.
+
+    The third byte is the number of octet regions in the packet.
+    
+    The bytes following the third byte are a sequence of binary length segments,
+each of which correspond to the number of octets in its respective region. They
+each follow this format:
+
+        IF LENGTH IS LESS THAN 254, THE LENGTH OF THE REGION IS STORED IN A
+    SINGLE BYTE.
+        
+        IF LENGTH IS GREATER THAN OR EQUAL TO 254 BUT LESS THAN 65536, THE
+    FIRST BYTE OF THE LENGTH SEGMENT SHOULD BE 254 AND THE FOLLOWING TWO
+    BYTES SHOULD BE THE LENGTH OF THE REGION.
+    
+        IF LENGTH IS GREATER THAN OR EQUAL TO 65536, THE FIRST BYTE OF THE
+    LENGTH SEGMENT SHOULD BE 255 AND THE FOLLOWING FOUR BYTES SHOULD BE THE
+    LENGTH OF THE REGION.
+    
+    The number of length segments should be equal to the number of octet re-
+gions as defined in the third byte.
+
+                               --- BODY ---
+                               
+    The message body immediately follows the header with no separator, and con-
+sists of a sequence of octet regions as defined in the header that are joined
+together without any separator. The position of an octet region in the body sho-
+uld correspond to the offset of the length segment in the header.
+
+                          --- INTEGER PACKING ---
+
+    All numbers, unless otherwise specified here or in the packet ID section, are
+the string representation of a base 10 number. Common exceptions below:
+
+    - USER IDs:     8 octets, signed
+    - CHANNEL IDs:  4 octets, unsigned
+    - MESSAGE IDs:  8 octets, unsigned
+
+
+                 ---- BASE PROTOCOL SPECIFIC PACKET IDS ----
+
+                          --- CLIENT TO SERVER ---                                
+
+0 - User keepalive ping. Done to prevent the client from closing the session
+    due to socket inactivity. The only parameter is the user id.
+    
+1 - User join request. The first parameter is an octet enumeration to determine
+    the authentication type.
+    
+    If '0', the authentication uses the default authentication as defined by the
+    client configuration. Following are a variable number of parameters that are
+    fed into the authentication script.
+    
+    If '1', the authentication uses the built-in session authentication, if it
+    is enabled. There are two parameters following this: the username associated
+    to the account represented by the session (as confirmed by the auth script)
+    and the password the user sets when declaring the session.
+    
+2 - User message. The first parameter is the message, the second parameter may
+    be the channel id, but if it is omitted, the message is processed without
+    a channel associated to it. This may be useful for commands that are sent
+    from a client that is not in a particular channel.
+    
+3 - User settings. For details on server responses to this query, see
+    _PACKET ID 3_ in the _SERVER TO CLIENT_ specifications. First parameter 
+    is an octet enumeration to determine what setting is being queried.
+    
+    If '1' (get language list), there are no following parameters.
+    
+    If '2' (set language), the parameters are as follows:
+        - TWO-CHARACTER ISO 639-1 LANGUAGE CODE
+        
+4 - RESERVED
+
+5 - 
+                              
+                          --- SERVER TO CLIENT ---
+                              
+0 - Keepalive ping response. Not actually handled, but the client does rec-
+    eive it. Maybe do something with this later, I dunno. First and only 
+    parameter is always the string 'pong'.
+
+1 - User joining message. Sent to incoming connections. First parameter is
+    a boolean value representing the status of the attempted connection.
+    
+    If '1' (connection accepted), the parameters are as follows:
+        - USER ID
+        - USER NAME
+        - USER COLOR
+        - PERMISSION STRING
+        - MAX MESSAGE LENGTH
+        - DEFAULT LANGUAGE
+            - TWO CHARACTER ISO 639-1 LANGUAGE CODE
+    
+    If '0' (connection refused), the parameters are as follows:
+        - REASON ENUMERATION
+            - 0: AUTH DATA IS WRONG
+            - 1: LOGIN LIMIT EXCEEDED
+            - 2: SOCKET SESSION ALREADY STARTED
+            - 3: BANNED
+                - Followed by unban _SOCKSTAMP_
+                
+2 - Chat message to be parsed.
+    
+    - _SOCKSTAMP_
+    - USER ID
+    - USER NAME
+    - USER COLOR
+    - PERMISSION STRING
+    - MESSAGE
+    - MESSAGE ID
+    - MESSAGE FLAGS [SET OF BOOLEANS ('1'/'0')]
+        - BOLD USERNAME
+        - ITALICIZED USERNAME
+        - UNDERLINED USERNAME
+        - COLON AFTER MESSAGE
+        - ALERT
+        - SANITIZE MESSAGE
+        - IS ERROR MESSAGE
+    - CHANNEL ID
+    
+    If the channel id is 0, it's a special condition. An additional pa-
+    rameter, an unsigned octet enum, is appended to the above list if
+    this is the case. The additional parameter is to be interpreted as
+    follows:
+        - IF PARAMETER IS '1', WRITE MESSAGE TO ALL OPEN CHATS
+        - IF PARAMETER IS '2', WRITE MESSAGE TO ACTIVE CHAT
+        - IF PARAMETER IS '3', MESSAGE IS A PRIVATE MESSAGE SENT TO USER BY
+          THE USER SPECIFIED IN PARAMETERS 2-5.
+        - IF PARAMETER IS '4', MESSAGE IS A PRIVATE MESSAGE SENT BY USER TO
+          THE USER SPECIFIED IN PARAMETERS 2-5.
+        
+    
+    If the message is sent by the chat bot, the USER ID will be set to -1.
+            
+3 - Reponses to user settings queries (see _PACKET ID 3_ under _CLIENT TO SEVER_
+    specification for more info). The first parameter is an octet enumeration
+    to determine what setting is being queried. NOTE: The server will always re-
+    pond to a client request of this packet type with the corresponding first
+    parameter in this way:
+    
+    If '1', the server returns a variable number of parameters after the first,
+    all of which represent a two-character ISO 639-1 language code that the
+    server supports.
+    
+    If '2', the server returns a two-character ISO 639-1 language code representing
+    what the user's language is now set to. This can be used to test for failure
+    when attempting to change languages, as it will be unchanged from the previous
+    value if the language you are attempting to change to is unsupported.
+
+4 - RESERVED
+    
+5 - User changing channel information for clients. First parameter is 0 or 
+    1 to indicate whether the user is joining or leaving, the following pa-
+    rameters depend on the first:
+        
+        If 0, the parameters are as follows:
+            - CHANNEL ID
+        And indicates the current channel a user has joined.
+        
+        If 1, the parameters are as follows:
+            - CHANNEL ID
+        And indicates the current channel a user has left.
+        
+6 - Indicates deletion of specific context data. The first parameter is
+    either a 0, 1, or 2 to enumerate what is to be deleted. The following
+    parameters depend on the first:
+    
+        If 0, the following parameter is a message id, and represents a
+        message to be deleted.
+        
+        If 1, the parameters are as follows:
+            - USER ID
+            - CHANNEL ID
+                - If 0, remove user from all channels.
+        And indicates a user being dropped from a channel context.
+
+        If 2, the following parameter is a channel id, and represents a
+        channel to be deleted.
+    
+7 - Indicates the sending of miscellaneous data to clients for context inf-
+    ormation. First parameter is 0, 1, or 2 to indicate whether the data is
+    a chat message, a user, or a channel. The following parameters depend
+    on the first:
+    
+        If 0, the parameters are as follows:
+            - CHANNEL ID USERS BELONG TO
+            - A COUNT OF USERS SENT IN PACKET (represented as N)
+            - N REPETITIONS OF
+                - USER ID
+                - USER NAME
+                - USER COLOR
+                - PERMISSION STRING
+              WHICH EACH REPRESENT A SINGLE USER
+        Note that if a user with an ID that already exists occurs in this
+        packet type _OR_ the channel id is set to 0, it means that the user
+        details have changed and need to be updated.
+            
+        If 1, the parameters are as follows:
+            - A COUNT OF CHANNELS SENT IN PACKET (represented as N)
+            - N REPETITIONS OF
+                - CHANNEL ID
+                - CHANNEL NAME
+                - IS PASSWORD PROTECTED (bool, 1 or 0)
+                - IS TEMPORARY (bool, 1 or 0)
+              WHICH EACH REPRESENT A SINGLE CHANNEL
+        Note that if a channel with an ID that already exists occurs in this
+        packet type, it means that the channel details have changed and need
+        to be updated.
+              
+8 - Forces the client to clear a specific portion of the context. First pa-
+    rameter is a character from 0 to 4 to indicate what should be cleared.
+    
+        '0' represents clearing the message list.
+        '1' represents clearing the user list.
+        '2' represents clearing the channel list.
+        '3' represents clearing both the message and user list.
+        '4' represents clearing all three lists.
+        
+        If first parameter is anything other than '2', then the following pa-
+        rameter will be a channel ID, and represents the channel for which
+        the context data should be cleared.
+        
+9 - Tells a client that they are about to have their socket session forcef-
+    ully terminated. Used to indicate either a kick or a ban.
+    
+    First argument is a 0, representing a kick, or a 1, representing a ban.
+    
+    If the first argument is 1, then the following argument is an expiration
+    _SOCKSTAMP_.
+    
+    Both types will have a final argument that specifies a moderator-given
+    reason for the ban. This can be empty.
+
+    
+                           ---- SOCKSTAMPS ----
+                             
+    Because epoch time is not standardized across systems, an intermediate
+layer of date/time transmission must be used between the client and server
+so as to handle time dependent interactions. Therefore, a "sockstamp" will
+be used in place of the context-dependent implementations of epoch time.
+
+    The client and server do not have to internally store datetime values
+in this way, but they _MUST_ be able to comprehend them when they occur in
+a packet and be able to translate their context-dependent times into this
+format when sending time specific information in a packet.
+
+    A sockstamp is a sequence of six octets that represent a fully qualif-
+ied date and time. For the best usage of space without obfuscating the data
+too much, the year's lower four bits and the four bits signifying a month
+are shared in the same byte, but no other components are joined.
+
+    The 12 bits signifying the year are a signed quanitity, and indicate
+the number of years since 2015; obviously, a negative value indicates a
+year that occurred prior to 2015. This gives a possible range of 2015 CE
++/- 2047/8 years, or 33 BCE to 4062 CE.
+    
+    The sequence of octets will be as defined below:
+    
+    BYTE 1 - Upper 8 bits of the year quantifier. The most significant bit
+             acts as the sign bit for the 12-bit year sequence.
+             
+    BYTE 2 - Upper 4 bits are the four least significant bits of the 12-bit
+             year quantifier. The lower 4 bits are the month quantifier, ra-
+             nging from 0 to 11.
+             
+    BYTE 3 - Day of month quanitifier. Ranges from 0 to 30.
+    
+    BYTE 4 - Hour quantifier. Ranges from 0 to 23.
+    
+    BYTE 5 - Minute quantifier. Ranges from 0 to 59.
+    
+    BYTE 6 - Second quantifier. Ranges from 0 to 59.
