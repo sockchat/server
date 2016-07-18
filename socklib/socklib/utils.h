@@ -191,7 +191,7 @@ namespace sc {
     
     class LIBPUB ip {
         // first pair item is the octet pair as seen in an IPv6 address
-        // second pair item determines what nibble(s) of this octet pair are to be treated as a wildcard
+        // second pair item determines what nipple(s) of this octet pair are to be treated as a wildcard
         //  basic bitmask, four most significant bits are unused while the four least significant bits
         //  are set according to what nibble is to be treated as a wildcard
         //  ex. ::F F F F

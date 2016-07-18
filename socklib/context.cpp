@@ -249,7 +249,7 @@ bool sc::Context::IsOriginalUsernameInUse(std::string username) {
 bool sc::Context::IsUserBanned(User u) {
     bans_m.lock();
     
-    bool ret = false, check;
+    bool ret = false, check = false;
     for(auto i = bans.begin(); i != bans.end(); ++i) {
         if(i->CheckUser(u, &check)) {
             ret = true;

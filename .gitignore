@@ -9,6 +9,7 @@ CMakeScripts*
 cmake_*
 CMakeCache.txt
 Makefile
+*.VC.opendb
 
 #################
 ## Eclipse
@@ -230,3 +231,4 @@ node_modules
 .npm-debug.log
 tmp
 .sass-cache
+server.VC.opendb

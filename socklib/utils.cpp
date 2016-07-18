@@ -1,5 +1,6 @@
 #include "socklib/utils.h"
 
+#pragma region STRINGLIB
 uint32_t sc::str::at(std::string str, int loc) {
     const char *front = str.c_str(), *back = front + str.length(), *ptr = front;
     uint32_t ret = 0;
@@ -175,7 +176,9 @@ short sc::str::getCharSize(uint32_t c) {
           (c <= 0xFFFFFF    ? 3 :
           (c <= 0xFFFFFFFF  ? 4 : 5)));
 }
+#pragma endregion
 
+#pragma region NETLIB
 std::string sc::net::packTime() {
     return packTime(std::chrono::system_clock::now());
 }
@@ -201,6 +204,29 @@ std::string sc::net::packTime(std::chrono::time_point<std::chrono::system_clock>
     return ss.str();
 }
 
+std::chrono::time_point<std::chrono::system_clock> sc::net::unpackTime(std::string sockstamp) {
+	struct tm tmp = tm();
+	tmp.tm_year = ((sockstamp[0] & 0xFF) << 4 | sockstamp[1] & 0xF0 >> 4) + 115;
+	tmp.tm_mon = sockstamp[1] & 0x0F;
+	tmp.tm_mday = (sockstamp[2] & 0xFF) + 1;
+	tmp.tm_hour = sockstamp[3] & 0xFF;
+	tmp.tm_min = sockstamp[4] & 0xFF;
+	tmp.tm_sec = sockstamp[5] & 0xFF;	
+	time_t ret = mktime(&tmp);
+
+	return std::chrono::system_clock::from_time_t(ret);
+}
+
+std::string sc::net::packErrorTime() {
+	std::stringstream ss;
+	for(int i = 0; i < 6; i++)
+		ss << (char)255;
+
+	return ss.str();
+}
+#pragma endregion
+
+#pragma region IPLIB
 bool sc::ip::IsFormatCorrect(std::string ip, std::string *details) {
     try {
         auto test = sc::ip(ip);
@@ -455,3 +481,16 @@ bool sc::ip::operator== (const sc::ip &other) const {
 bool sc::ip::operator!= (const sc::ip &other) const {
     return !(*this == other);
 }
+
+bool sc::ip::operator& (const sc::ip &other) const {
+	bool ret = true;
+	for(int i = 0; i < 8; i++)
+		ret = ret && (other.parts[i].first == parts[i].first)
+				  && (other.parts[i].second == parts[i].second);
+	return ret;
+}
+
+bool sc::ip::operator^ (const sc::ip &other) const {
+	return !(*this & other);
+}
+#pragma endregion

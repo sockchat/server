@@ -62,8 +62,12 @@ int main(int argc, char* argv[]) {
     signal(SIGABRT, sigHandler);
 #endif
 
-    //std::string wowo = sc::net::packTime();
-    
+    std::string wowo = sc::net::packTime();
+	auto owow = sc::net::unpackTime(wowo);
+	struct tm utc;
+	time_t f = std::chrono::system_clock::to_time_t(owow);
+	gmtime_s(&utc, &f);
+
     sc::Context::Init();
     
     sc::Socket client;
